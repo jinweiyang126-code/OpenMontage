@@ -1,0 +1,22 @@
+# TTS fallback routing when BasicRouter speech is unavailable.
+# Chains are tried in order; the first available provider wins.
+
+enabled: true
+
+chains:
+  en:
+    - piper_tts
+    - openai_tts
+    - google_tts
+  zh:
+    - piper_tts
+    - dashscope_tts
+    - doubao_tts
+    - google_tts
+
+piper:
+  data_dir: config/piper_models
+  models:
+    en: en_US-lessac-medium
+    zh: zh_CN-huayan-medium
+  default_model: en_US-lessac-medium

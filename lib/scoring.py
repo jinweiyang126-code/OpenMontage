@@ -9,6 +9,7 @@ Scores are normalized 0-1. Higher is better.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, asdict, field
 import re
 from typing import Any
@@ -516,6 +517,11 @@ def score_provider(tool, task_context: dict[str, Any]) -> ProviderScore:
                 output_quality = min(1.0, output_quality + 0.10)
             elif matched >= 1:
                 task_fit = min(1.0, task_fit + 0.05)
+
+    if os.environ.get("BASICROUTER_PREFERRED", "").strip().lower() in {"1", "true", "yes"}:
+        if info.get("provider") == "basicrouter":
+            task_fit = min(1.0, task_fit + 0.12)
+            continuity = min(1.0, continuity + 0.20)
 
     return ProviderScore(
         tool_name=info.get("name", "unknown"),

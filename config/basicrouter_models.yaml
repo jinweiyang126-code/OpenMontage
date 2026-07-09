@@ -1,0 +1,21 @@
+# Default BasicRouter model aliases. Override per-call via tool `model` input.
+# Model IDs should match entries returned by GET /api/v1/models on your account.
+
+image:
+  default: "gpt-image-2"
+  photorealistic: "gpt-image-2"
+  fast: "gpt-image-2"
+
+video:
+  default: "seedance-2.0"
+  cinematic: "seedance-2.0"
+  fast: "seedance-2.0"
+
+tts:
+  default: "gpt-4o-mini-tts"
+  en: "gpt-4o-mini-tts"
+  zh: "gpt-4o-mini-tts"
+
+voices:
+  en: "alloy"
+  zh: "nova"

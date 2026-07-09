@@ -1,0 +1,147 @@
+{
+  "theme": "flat-motion-graphics",
+  "renderer_family": "explainer-data",
+  "render_runtime": "remotion",
+  "cuts": [
+    {
+      "id": "hook",
+      "source": "",
+      "type": "hero_title",
+      "in_seconds": 0,
+      "out_seconds": 10,
+      "text": "量子计算是什么？",
+      "subtitle": "给中学生的 90 秒奇妙之旅",
+      "backgroundColor": "#0B1026"
+    },
+    {
+      "id": "bit-vs-qubit",
+      "source": "",
+      "type": "comparison",
+      "in_seconds": 10,
+      "out_seconds": 22,
+      "title": "经典比特 vs 量子比特",
+      "leftLabel": "经典比特",
+      "leftValue": "0 或 1",
+      "rightLabel": "量子比特",
+      "rightValue": "0 和 1 同时",
+      "backgroundColor": "#111827"
+    },
+    {
+      "id": "superposition-stat",
+      "source": "",
+      "type": "stat_card",
+      "in_seconds": 22,
+      "out_seconds": 30,
+      "stat": "2ⁿ",
+      "subtitle": "n 个量子比特 = 同时探索 2ⁿ 种可能",
+      "accentColor": "#A78BFA",
+      "backgroundColor": "#0B1026"
+    },
+    {
+      "id": "superposition-chart",
+      "source": "",
+      "type": "bar_chart",
+      "in_seconds": 30,
+      "out_seconds": 38,
+      "title": "可能性增长有多快？",
+      "chartData": [
+        { "label": "1 比特", "value": 2 },
+        { "label": "2 比特", "value": 4 },
+        { "label": "3 比特", "value": 8 },
+        { "label": "10 比特", "value": 1024 }
+      ],
+      "chartColors": ["#22D3EE", "#A78BFA", "#F472B6", "#34D399"],
+      "showGrid": true,
+      "showValues": true,
+      "backgroundColor": "#0B1026"
+    },
+    {
+      "id": "entanglement",
+      "source": "",
+      "type": "text_card",
+      "in_seconds": 38,
+      "out_seconds": 52,
+      "text": "纠缠：相隔再远，也能“心有灵犀”",
+      "color": "#E0E7FF",
+      "backgroundColor": "#1E1B4B"
+    },
+    {
+      "id": "reassurance",
+      "source": "",
+      "type": "callout",
+      "in_seconds": 52,
+      "out_seconds": 64,
+      "callout_type": "tip",
+      "title": "别担心",
+      "text": "它不会明天就破解你的微信密码。量子计算机今天还在实验室里“练级”。",
+      "backgroundColor": "#0F172A"
+    },
+    {
+      "id": "applications",
+      "source": "",
+      "type": "kpi_grid",
+      "in_seconds": 64,
+      "out_seconds": 78,
+      "title": "未来能帮我们做什么？",
+      "chartData": [
+        { "label": "新药设计", "value": "分子模拟" },
+        { "label": "天气预报", "value": "复杂系统" },
+        { "label": "交通优化", "value": "亿万路线" },
+        { "label": "材料科学", "value": "新材料" }
+      ],
+      "columns": 2,
+      "backgroundColor": "#0B1026"
+    },
+    {
+      "id": "closing",
+      "source": "",
+      "type": "hero_title",
+      "in_seconds": 78,
+      "out_seconds": 90,
+      "text": "保持好奇，保持发问",
+      "subtitle": "也许未来的量子工程师，就是你",
+      "backgroundColor": "#312E81"
+    }
+  ],
+  "overlays": [
+    {
+      "type": "section_title",
+      "in_seconds": 10.2,
+      "out_seconds": 13,
+      "text": "比特的世界",
+      "subtitle": "从“要么…要么…”开始",
+      "accentColor": "#22D3EE"
+    },
+    {
+      "type": "section_title",
+      "in_seconds": 22.2,
+      "out_seconds": 25,
+      "text": "叠加态",
+      "subtitle": "旋转中的硬币",
+      "accentColor": "#A78BFA"
+    },
+    {
+      "type": "stat_reveal",
+      "in_seconds": 40,
+      "out_seconds": 43,
+      "text": "幽灵般的超距作用",
+      "subtitle": "爱因斯坦也觉得很神奇",
+      "accentColor": "#F472B6",
+      "position": "bottom-right"
+    }
+  ],
+  "captions": [],
+  "audio": {
+    "narration": {
+      "src": "quantum-computing/narration.wav",
+      "volume": 1.0
+    },
+    "music": {
+      "src": "quantum-computing/bgm.mp3",
+      "volume": 0.14,
+      "fadeInSeconds": 2,
+      "fadeOutSeconds": 4,
+      "duckUnderNarration": true
+    }
+  }
+}

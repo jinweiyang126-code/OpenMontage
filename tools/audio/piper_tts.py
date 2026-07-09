@@ -56,6 +56,7 @@ class PiperTTS(BaseTool):
     best_for = [
         "offline narration fallback",
         "privacy-sensitive local-only workflows",
+        "English and Chinese fallback when cloud TTS is unavailable",
     ]
     not_good_for = [
         "best-in-class expressive voice quality",
@@ -67,6 +68,16 @@ class PiperTTS(BaseTool):
         "required": ["text"],
         "properties": {
             "text": {"type": "string"},
+            "language": {
+                "type": "string",
+                "enum": ["en", "zh", "auto"],
+                "default": "auto",
+                "description": "Selects the Piper voice model from config/tts_fallback.yaml.",
+            },
+            "data_dir": {
+                "type": "string",
+                "description": "Directory containing downloaded Piper ONNX voice files.",
+            },
             "model": {
                 "type": "string",
                 "default": "en_US-lessac-medium",
@@ -95,10 +106,39 @@ class PiperTTS(BaseTool):
     side_effects = ["writes audio file to output_path"]
     user_visible_verification = ["Listen to generated audio for intelligibility"]
 
+    def _piper_binary(self) -> str | None:
+        project_root = Path(__file__).resolve().parents[2]
+        candidates = [
+            project_root / ".venv" / "bin" / "piper",
+            shutil.which("piper"),
+        ]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(candidate)
+            if path.is_file():
+                return str(path)
+        return None
+
+    def _default_piper_inputs(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        from lib.tts_fallback import piper_settings
+
+        settings = piper_settings(inputs.get("language"), inputs.get("text"))
+        merged = dict(inputs)
+        merged.setdefault("model", settings["model"])
+        merged.setdefault("data_dir", settings["data_dir"])
+        merged.setdefault("language", settings["language"])
+        return merged
+
     def get_status(self) -> ToolStatus:
-        if shutil.which("piper"):
-            return ToolStatus.AVAILABLE
-        return ToolStatus.UNAVAILABLE
+        if not self._piper_binary():
+            return ToolStatus.UNAVAILABLE
+        from lib.tts_fallback import piper_settings
+
+        data_dir = Path(piper_settings()["data_dir"])
+        if not data_dir.is_dir():
+            return ToolStatus.UNAVAILABLE
+        return ToolStatus.AVAILABLE
 
     def estimate_cost(self, inputs: dict[str, Any]) -> float:
         return 0.0
@@ -117,17 +157,23 @@ class PiperTTS(BaseTool):
         return result
 
     def _generate(self, inputs: dict[str, Any]) -> ToolResult:
+        inputs = self._default_piper_inputs(inputs)
+        piper_bin = self._piper_binary()
+        if not piper_bin:
+            return ToolResult(success=False, error="Piper TTS not available. " + self.install_instructions)
+
         output_path = Path(inputs.get("output_path", "tts_output.wav"))
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         proc = subprocess.run(
             [
-                "piper",
-                "--model", inputs.get("model", "en_US-lessac-medium"),
-                "--speaker", str(inputs.get("speaker_id", 0)),
+                piper_bin,
+                "-m", inputs.get("model", "en_US-lessac-medium"),
+                "--data-dir", inputs["data_dir"],
+                "-s", str(inputs.get("speaker_id", 0)),
                 "--length-scale", str(inputs.get("length_scale", 1.0)),
                 "--sentence-silence", str(inputs.get("sentence_silence", 0.3)),
-                "--output_file", str(output_path),
+                "-f", str(output_path),
             ],
             input=inputs["text"],
             capture_output=True,
@@ -145,6 +191,8 @@ class PiperTTS(BaseTool):
             data={
                 "provider": self.provider,
                 "model": inputs.get("model", "en_US-lessac-medium"),
+                "language": inputs.get("language"),
+                "data_dir": inputs.get("data_dir"),
                 "speaker_id": inputs.get("speaker_id", 0),
                 "text_length": len(inputs["text"]),
                 "output": str(output_path),

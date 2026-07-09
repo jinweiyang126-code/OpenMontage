@@ -1,0 +1,112 @@
+{
+  "titleFontSize": 72,
+  "titleWidth": 1280,
+  "signalLineCount": 14,
+  "soundtrack": {
+    "src": "aquapulse/narration.wav",
+    "volume": 1,
+    "fadeInSeconds": 0.2,
+    "fadeOutSeconds": 0.8
+  },
+  "music": {
+    "src": "aquapulse/bgm.mp3",
+    "volume": 0.18,
+    "fadeInSeconds": 1.5,
+    "fadeOutSeconds": 2.5
+  },
+  "scenes": [
+    {
+      "id": "s1",
+      "kind": "video",
+      "startSeconds": 0,
+      "durationSeconds": 4,
+      "src": "aquapulse/clip1.mp4",
+      "tone": "cold",
+      "fadeInFrames": 0
+    },
+    {
+      "id": "s2",
+      "kind": "title",
+      "startSeconds": 4,
+      "durationSeconds": 3,
+      "text": "补水，不该靠猜",
+      "accent": "#00D4FF",
+      "intensity": 1
+    },
+    {
+      "id": "s3",
+      "kind": "video",
+      "startSeconds": 7,
+      "durationSeconds": 4,
+      "src": "aquapulse/clip2.mp4",
+      "tone": "void"
+    },
+    {
+      "id": "s4",
+      "kind": "title",
+      "startSeconds": 11,
+      "durationSeconds": 3,
+      "text": "让补水变成数据",
+      "accent": "#00D4FF",
+      "intensity": 1.05
+    },
+    {
+      "id": "s5",
+      "kind": "title",
+      "startSeconds": 14,
+      "durationSeconds": 3,
+      "text": "实时追踪饮水量",
+      "accent": "#06B6D4",
+      "intensity": 1,
+      "backgroundSrc": "aquapulse/product.png",
+      "variant": "overlay"
+    },
+    {
+      "id": "s6",
+      "kind": "title",
+      "startSeconds": 17,
+      "durationSeconds": 3,
+      "text": "LED 脉冲提醒",
+      "accent": "#00D4FF",
+      "intensity": 1
+    },
+    {
+      "id": "s7",
+      "kind": "video",
+      "startSeconds": 20,
+      "durationSeconds": 4,
+      "src": "aquapulse/clip1.mp4",
+      "tone": "steel",
+      "trimBeforeSeconds": 1
+    },
+    {
+      "id": "s8",
+      "kind": "title",
+      "startSeconds": 24,
+      "durationSeconds": 3,
+      "text": "十二小时保冷",
+      "accent": "#00D4FF",
+      "intensity": 1
+    },
+    {
+      "id": "s9",
+      "kind": "video",
+      "startSeconds": 27,
+      "durationSeconds": 4,
+      "src": "aquapulse/clip2.mp4",
+      "tone": "cold",
+      "trimBeforeSeconds": 0.5
+    },
+    {
+      "id": "s10",
+      "kind": "title",
+      "startSeconds": 31,
+      "durationSeconds": 5,
+      "text": "聪明喝水，从现在开始",
+      "accent": "#00D4FF",
+      "intensity": 1.15,
+      "backgroundSrc": "aquapulse/product.png",
+      "variant": "overlay"
+    }
+  ]
+}
