@@ -199,8 +199,11 @@ dnf install -y httpd-tools   # 或 yum install
 mkdir -p /www/server/pass/backlot
 htpasswd -c /www/server/pass/backlot/.htpasswd backlot
 # 输入密码（与你在面板里想的 backlot/backlot 一致即可）
-chmod 640 /www/server/pass/backlot/.htpasswd
+chown www:www /www/server/pass/backlot/.htpasswd
+chmod 644 /www/server/pass/backlot/.htpasswd
 ```
+
+> **权限说明：** 宝塔 Nginx 以 `www` 用户运行。若文件为 `root:root` 且 `640`，会报 **500**（无法读取 `.htpasswd`）。必须用 `www:www` + `644`（或 `640` 且属主为 `www`）。
 
 2. 宝塔 → 该站点 **设置 → 配置文件**，找到反向代理段（`#PROXY-START/` … `#PROXY-END/` 之间的 `location /` 或类似块）。
 
