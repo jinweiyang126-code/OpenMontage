@@ -286,6 +286,7 @@ curl -u backlot:你的密码 http://43.106.20.90/api/health
 | 现象             | 处理                                                             |
 | ---------------- | ---------------------------------------------------------------- |
 | 502 Bad Gateway  | Backlot 未启动；`curl http://127.0.0.1:4750/api/health`        |
+| 500 Internal Server Error | `.htpasswd` 权限：`chown www:www` + `chmod 644`，再 reload Nginx |
 | 看板不实时刷新   | 反向代理 location 缺少`proxy_buffering off`                    |
 | 401 / 反复要密码 | 勿用「加密访问」与反向代理同时开；只用 location 内 `auth_basic` |
 | 502 且已开加密访问 | 删除 `/` 的加密访问规则，改用 2.3 配置文件鉴权 |
