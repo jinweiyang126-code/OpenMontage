@@ -284,7 +284,8 @@ curl -u backlot:你的密码 http://43.106.20.90/api/health
 | ---------------- | ---------------------------------------------------------------- |
 | 502 Bad Gateway  | Backlot 未启动；`curl http://127.0.0.1:4750/api/health`        |
 | 看板不实时刷新   | 反向代理 location 缺少`proxy_buffering off`                    |
-| 401 / 反复要密码 | 检查密码访问是否重复配置了 Basic Auth；清除浏览器缓存            |
+| 401 / 反复要密码 | 勿用「加密访问」与反向代理同时开；只用 location 内 `auth_basic` |
+| 502 且已开加密访问 | 删除 `/` 的加密访问规则，改用 2.3 配置文件鉴权 |
 | 视频无法播放     | 确认已加`Range` / `If-Range` 头；增大 `proxy_read_timeout` |
 | 改配置不生效     | 宝塔**Nginx → 重载**；或 `nginx -t` 检查语法            |
 
