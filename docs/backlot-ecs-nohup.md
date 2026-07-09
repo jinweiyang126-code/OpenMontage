@@ -117,7 +117,193 @@ echo $! > /tmp/backlot.pid
 
 ---
 
-## 四、日常运维
+## 四、外网访问（方式 2：Nginx 反向代理 + 密码鉴权）
+
+> **推荐的外网方案。** Backlot 仍只监听 `127.0.0.1:4750`，不对外暴露 4750 端口；由 Nginx 对外提供 80/443，并加 HTTP Basic 认证。
+
+### 架构
+
+```text
+浏览器 → Nginx（80/443，用户名密码） → 127.0.0.1:4750（Backlot，仅本机）
+```
+
+### 1. 启动 Backlot（仅本机，不要用 0.0.0.0）
+
+```bash
+cd /root/OpenMontage
+source .venv/bin/activate
+
+pkill -f "uvicorn backlot.server" 2>/dev/null
+pkill -f "backlot serve" 2>/dev/null
+
+nohup python -m backlot serve --port 4750 > /var/log/backlot.log 2>&1 &
+echo $! > /tmp/backlot.pid
+
+curl -s http://127.0.0.1:4750/api/health
+```
+
+### 2. 安装 Nginx 与 htpasswd 工具
+
+阿里云 Linux / CentOS / RHEL：
+
+```bash
+dnf install -y nginx httpd-tools
+# 若无 dnf：yum install -y nginx httpd-tools
+```
+
+Ubuntu / Debian：
+
+```bash
+apt update && apt install -y nginx apache2-utils
+```
+
+### 3. 创建访问账号（HTTP Basic Auth）
+
+```bash
+# 首次创建 -c；追加用户去掉 -c
+htpasswd -c /etc/nginx/.htpasswd_backlot backlot
+# 按提示输入密码（至少 8 位建议）
+
+# 追加第二个用户（不要用 -c，会覆盖文件）
+# htpasswd /etc/nginx/.htpasswd_backlot alice
+
+chmod 640 /etc/nginx/.htpasswd_backlot
+chown root:nginx /etc/nginx/.htpasswd_backlot
+```
+
+### 4. Nginx 站点配置
+
+创建 `/etc/nginx/conf.d/backlot.conf`（将 `43.106.20.90` 换成域名或 ECS 公网 IP）：
+
+```nginx
+server {
+    listen 80;
+    server_name 43.106.20.90;   # 或 backlot.example.com
+
+    # 可选：强制 HTTPS（配置好证书后取消注释）
+    # return 301 https://$host$request_uri;
+
+    location / {
+        auth_basic "Backlot";
+        auth_basic_user_file /etc/nginx/.htpasswd_backlot;
+
+        proxy_pass http://127.0.0.1:4750;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Backlot 使用 SSE 推送变更，必须关闭缓冲
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        # 视频 /media  Range 请求透传
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+    }
+}
+```
+
+检查并重载：
+
+```bash
+nginx -t
+systemctl enable nginx
+systemctl restart nginx
+```
+
+### 5. 阿里云安全组
+
+| 协议 | 端口 | 来源 | 说明 |
+|------|------|------|------|
+| TCP | 80 | 0.0.0.0/0 或你的 IP | HTTP 访问 |
+| TCP | 443 | 0.0.0.0/0 或你的 IP | HTTPS（若配置证书） |
+| TCP | 4750 | **不开放** | Backlot 仅本机，经 Nginx 访问 |
+
+### 6. 浏览器访问
+
+| 页面 | 地址 |
+|------|------|
+| 项目库 | http://43.106.20.90/ |
+| 单个项目 | http://43.106.20.90/p/<project-id> |
+
+首次打开会弹出 **用户名 / 密码** 对话框（即 `htpasswd` 创建的账号）。
+
+### 7. 命令行验证
+
+```bash
+curl -u backlot:你的密码 http://127.0.0.1/api/health
+curl -u backlot:你的密码 http://43.106.20.90/api/health
+```
+
+### 8. 可选：HTTPS（Let's Encrypt 或阿里云证书）
+
+有域名且解析到 ECS 时，可用 certbot：
+
+```bash
+dnf install -y certbot python3-certbot-nginx
+certbot --nginx -d backlot.example.com
+```
+
+或在 Nginx 中手动配置 `ssl_certificate` / `ssl_certificate_key`（阿里云免费证书下载的 `.pem` / `.key`）。
+
+HTTPS 示例片段：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name backlot.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/backlot.pem;
+    ssl_certificate_key /etc/nginx/ssl/backlot.key;
+
+    location / {
+        auth_basic "Backlot";
+        auth_basic_user_file /etc/nginx/.htpasswd_backlot;
+        proxy_pass http://127.0.0.1:4750;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+    }
+}
+```
+
+### 9. 运维
+
+```bash
+# 修改密码 / 新增用户
+htpasswd /etc/nginx/.htpasswd_backlot backlot
+
+# 重载 Nginx
+nginx -t && systemctl reload nginx
+
+# 查看 Nginx 日志
+tail -f /var/log/nginx/access.log /var/log/nginx/error.log
+```
+
+### 10. 与方式 1 对比
+
+| 项 | 方式 1（0.0.0.0:4750） | 方式 2（Nginx + 密码） |
+|----|------------------------|-------------------------|
+| 鉴权 | 无 | HTTP Basic 用户名密码 |
+| 暴露端口 | 4750 | 80 / 443 |
+| Backlot 绑定 | 0.0.0.0 | 127.0.0.1（更安全） |
+| 推荐度 | 临时测试 | **长期外网推荐** |
+
+---
+
+## 五、日常运维
 
 ### 查看是否在运行
 
@@ -157,7 +343,7 @@ echo $! > /tmp/backlot.pid
 
 ---
 
-## 五、自定义端口
+## 六、自定义端口
 
 ```bash
 export BACKLOT_PORT=8080
@@ -186,7 +372,7 @@ echo $! > /tmp/backlot.pid
 
 ---
 
-## 六、无真实项目时的演示
+## 七、无真实项目时的演示
 
 ```bash
 cd /root/OpenMontage
@@ -200,20 +386,23 @@ http://127.0.0.1:4750/p/backlot-demo-run
 
 ---
 
-## 七、常见问题
+## 八、常见问题
 
 | 现象                  | 处理                                                                               |
 | --------------------- | ---------------------------------------------------------------------------------- |
 | `curl` 健康检查失败 | 确认 venv 已激活、依赖已安装；查看`/var/log/backlot.log`                         |
 | 本机浏览器打不开（隧道模式） | 确认 ECS 上进程在跑，且本机 `ssh -L` 窗口未关闭 |
-| 外网浏览器打不开 | 确认用 `uvicorn --host 0.0.0.0` 启动；安全组已放行 4750；ECS 防火墙未拦截 |
+| SSE 看板不刷新（Nginx 模式） | 确认 `proxy_buffering off`；`nginx -t` 后 reload |
+| 401 Unauthorized | 检查 `htpasswd` 用户名密码；`auth_basic_user_file` 路径与权限 |
+| 外网打不开（方式 1） | 确认 `uvicorn --host 0.0.0.0`；安全组放行 4750 |
+| 外网打不开（方式 2） | 确认 Nginx 运行；安全组放行 80/443；Backlot 在 127.0.0.1:4750 |
 | 看板为空              | `projects/` 下尚无项目；先用 Cursor Agent 制作或运行 `backlot_simulate_run.py` |
 | 端口被占用            | 换`--port`，或 `pkill -f "backlot serve"` 后重启                               |
 | ECS 重启后服务消失    | nohup 不会开机自启；需重新执行「一、启动」，或改用 systemd                         |
 
 ---
 
-## 八、与 Cursor Remote-SSH 配合
+## 九、与 Cursor Remote-SSH 配合
 
 1. ECS 上按本文「一、启动」挂好 Backlot（可关闭 SSH，服务仍在）。
 2. 本机 PowerShell 执行 `ssh -L 4750:127.0.0.1:4750 ...`。
@@ -221,18 +410,19 @@ http://127.0.0.1:4750/p/backlot-demo-run
 
 ---
 
-## 九、安全说明
+## 十、安全说明
 
-| 模式 | 监听地址 | 安全组 | 适用场景 |
-|------|----------|--------|----------|
-| 本机 + SSH 隧道（「一、启动」） | `127.0.0.1` | 无需开放 4750 | **推荐**，日常自用 |
-| 外网直连（「三、方式 1」） | `0.0.0.0` | 需开放 4750 | 测试/临时分享；**无鉴权，慎用** |
+| 模式 | 监听地址 | 对外端口 | 鉴权 | 适用场景 |
+|------|----------|----------|------|----------|
+| 本机 + SSH 隧道（「一」） | `127.0.0.1:4750` | 无 | SSH | **日常自用，最安全** |
+| 外网直连（「三、方式 1」） | `0.0.0.0:4750` | 4750 | 无 | 临时测试，慎用 |
+| Nginx + 密码（「四、方式 2」） | `127.0.0.1:4750` | 80/443 | HTTP Basic | **外网长期推荐** |
 
-外网模式额外建议：
+外网建议：
 
-- 安全组来源设为 **你的公网 IP/32**，不要用 `0.0.0.0/0`
-- 不用时停止服务并关闭安全组规则
-- 生产环境如需长期外网访问，应在前端加 Nginx + HTTPS + 基础认证（本文未覆盖）
+- 优先 **方式 2（Nginx + htpasswd）**，并配置 HTTPS
+- 方式 1 若必须使用：安全组限制为你的公网 IP，不用时关闭规则
+- Basic 认证密码请用强密码；HTTPS 避免明文传输密码
 
 ---
 
