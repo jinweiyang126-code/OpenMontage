@@ -119,7 +119,8 @@ echo $! > /tmp/backlot.pid
 
 ## 四、外网访问（方式 2：Nginx 反向代理 + 密码鉴权）
 
-> **推荐的外网方案。** Backlot 仍只监听 `127.0.0.1:4750`，不对外暴露 4750 端口；由 Nginx 对外提供 80/443，并加 HTTP Basic 认证。
+> **推荐的外网方案。** Backlot 仍只监听 `127.0.0.1:4750`，不对外暴露 4750 端口；由 Nginx 对外提供 80/443，并加 HTTP Basic 认证。  
+> **生产环境使用阿里云 ECS + 宝塔面板** 时，请直接看 **「2. 宝塔面板部署」**；下文「3. 命令行 Nginx」为无宝塔时的备选。
 
 ### 架构
 
@@ -142,7 +143,126 @@ echo $! > /tmp/backlot.pid
 curl -s http://127.0.0.1:4750/api/health
 ```
 
-### 2. 安装 Nginx 与 htpasswd 工具
+### 2. 宝塔面板部署（生产推荐）
+
+前提：ECS 已安装 **宝塔 Linux 面板**，且 Nginx 由宝塔管理（面板 → 软件商店 → 已安装 Nginx）。
+
+#### 2.1 添加网站
+
+1. 登录宝塔面板（一般为 `http://ECS公网IP:8888/xxxx`，勿对全网长期开放 8888）。
+2. **网站** → **添加站点**：
+   - **域名**：填公网 IP（如 `43.106.20.90`）或已解析的域名（如 `backlot.example.com`）
+   - **根目录**：默认即可（Backlot 走反向代理，不用站点目录里的文件）
+   - **PHP 版本**：选 **纯静态** 或 **不创建 PHP**（视面板版本而定）
+3. 提交创建站点。
+
+#### 2.2 配置反向代理
+
+1. 进入该站点 → **设置** → **反向代理** → **添加反向代理**。
+2. 填写：
+
+| 项 | 值 |
+|----|-----|
+| 代理名称 | `backlot` |
+| 目标 URL | `http://127.0.0.1:4750` |
+| 发送域名 | `$host` |
+| 内容替换 | 不填 |
+
+3. 保存后，在反向代理条目上点 **配置文件** 或 **编辑**，在 `location` 内 **追加**（Backlot 的 SSE 实时看板需要）：
+
+```nginx
+proxy_buffering off;
+proxy_cache off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+proxy_http_version 1.1;
+proxy_set_header Range $http_range;
+proxy_set_header If-Range $http_if_range;
+```
+
+4. 保存并重载 Nginx（面板一般会提示重载；或 **软件商店 → Nginx → 重载配置**）。
+
+> 若面板只有「反向代理」表单、无法编辑片段：到站点 **设置 → 配置文件**，找到 `#PROXY-START/` 与 `#PROXY-END/` 之间的 `location`，手动加入上面几行。
+
+#### 2.3 密码鉴权（二选一）
+
+**方法 A：宝塔「密码访问」（推荐，图形界面）**
+
+1. 站点 **设置** → **密码访问**（部分版本在 **访问限制** 下）。
+2. 开启，设置 **用户名**、**密码**（如 `backlot` / 强密码）。
+3. 保存。
+
+**方法 B：HTTP Basic Auth（与命令行 htpasswd 一致）**
+
+SSH 到 ECS：
+
+```bash
+dnf install -y httpd-tools   # 或 yum install
+mkdir -p /www/server/pass/backlot
+htpasswd -c /www/server/pass/backlot/.htpasswd backlot
+```
+
+站点 **设置 → 配置文件**，在 `server { ... }` 内、`location` 之前或 `location /` 内增加：
+
+```nginx
+auth_basic "Backlot";
+auth_basic_user_file /www/server/pass/backlot/.htpasswd;
+```
+
+保存并重载 Nginx。
+
+#### 2.4 HTTPS（建议）
+
+1. 站点 **设置 → SSL**。
+2. **Let's Encrypt** 一键申请（需域名已解析到 ECS），或 **其他证书** 上传阿里云申请的 `.pem` / `.key`。
+3. 开启 **强制 HTTPS**。
+
+#### 2.5 防火墙与安全组
+
+| 位置 | 操作 |
+|------|------|
+| **阿里云安全组** | 放行 **80、443**；**不要** 对公网开放 **4750** |
+| **宝塔 → 安全** | 放行 **80、443**（若启用了宝塔系统防火墙） |
+| **宝塔面板 8888** | 仅允许你的 IP 访问，或改非常用端口 |
+
+#### 2.6 访问与验证
+
+| 页面 | 地址 |
+|------|------|
+| 项目库 | `http://你的域名或IP/` |
+| 单个项目 | `http://你的域名或IP/p/<project-id>` |
+
+浏览器会先弹出 **用户名/密码**（密码访问或 Basic Auth），通过后进入 Backlot。
+
+```bash
+# SSH 验证（方法 B 时）
+curl -u backlot:你的密码 http://127.0.0.1/api/health
+
+# 经 Nginx 验证
+curl -u backlot:你的密码 http://43.106.20.90/api/health
+```
+
+#### 2.7 宝塔常见问题
+
+| 现象 | 处理 |
+|------|------|
+| 502 Bad Gateway | Backlot 未启动；`curl http://127.0.0.1:4750/api/health` |
+| 看板不实时刷新 | 反向代理 location 缺少 `proxy_buffering off` |
+| 401 / 反复要密码 | 检查密码访问是否重复配置了 Basic Auth；清除浏览器缓存 |
+| 视频无法播放 | 确认已加 `Range` / `If-Range` 头；增大 `proxy_read_timeout` |
+| 改配置不生效 | 宝塔 **Nginx → 重载**；或 `nginx -t` 检查语法 |
+
+站点 Nginx 配置常见路径（便于 SSH 排查）：
+
+```text
+/www/server/panel/vhost/nginx/你的域名.conf
+```
+
+---
+
+### 3. 命令行 Nginx（无宝塔 / 备选）
+
+#### 3.1 安装 Nginx 与 htpasswd 工具
 
 阿里云 Linux / CentOS / RHEL：
 
@@ -157,7 +277,7 @@ Ubuntu / Debian：
 apt update && apt install -y nginx apache2-utils
 ```
 
-### 3. 创建访问账号（HTTP Basic Auth）
+#### 3.2 创建访问账号（HTTP Basic Auth）
 
 ```bash
 # 首次创建 -c；追加用户去掉 -c
@@ -171,7 +291,7 @@ chmod 640 /etc/nginx/.htpasswd_backlot
 chown root:nginx /etc/nginx/.htpasswd_backlot
 ```
 
-### 4. Nginx 站点配置
+#### 3.3 Nginx 站点配置
 
 创建 `/etc/nginx/conf.d/backlot.conf`（将 `43.106.20.90` 换成域名或 ECS 公网 IP）：
 
@@ -215,7 +335,7 @@ systemctl enable nginx
 systemctl restart nginx
 ```
 
-### 5. 阿里云安全组
+#### 3.4 阿里云安全组
 
 | 协议 | 端口 | 来源 | 说明 |
 |------|------|------|------|
@@ -223,7 +343,7 @@ systemctl restart nginx
 | TCP | 443 | 0.0.0.0/0 或你的 IP | HTTPS（若配置证书） |
 | TCP | 4750 | **不开放** | Backlot 仅本机，经 Nginx 访问 |
 
-### 6. 浏览器访问
+#### 3.5 浏览器访问
 
 | 页面 | 地址 |
 |------|------|
@@ -232,14 +352,14 @@ systemctl restart nginx
 
 首次打开会弹出 **用户名 / 密码** 对话框（即 `htpasswd` 创建的账号）。
 
-### 7. 命令行验证
+#### 3.6 命令行验证
 
 ```bash
 curl -u backlot:你的密码 http://127.0.0.1/api/health
 curl -u backlot:你的密码 http://43.106.20.90/api/health
 ```
 
-### 8. 可选：HTTPS（Let's Encrypt 或阿里云证书）
+#### 3.7 可选：HTTPS（Let's Encrypt 或阿里云证书）
 
 有域名且解析到 ECS 时，可用 certbot：
 
@@ -279,7 +399,7 @@ server {
 }
 ```
 
-### 9. 运维
+#### 3.8 运维
 
 ```bash
 # 修改密码 / 新增用户
@@ -292,7 +412,7 @@ nginx -t && systemctl reload nginx
 tail -f /var/log/nginx/access.log /var/log/nginx/error.log
 ```
 
-### 10. 与方式 1 对比
+### 4. 与方式 1 对比
 
 | 项 | 方式 1（0.0.0.0:4750） | 方式 2（Nginx + 密码） |
 |----|------------------------|-------------------------|
@@ -417,10 +537,12 @@ http://127.0.0.1:4750/p/backlot-demo-run
 | 本机 + SSH 隧道（「一」） | `127.0.0.1:4750` | 无 | SSH | **日常自用，最安全** |
 | 外网直连（「三、方式 1」） | `0.0.0.0:4750` | 4750 | 无 | 临时测试，慎用 |
 | Nginx + 密码（「四、方式 2」） | `127.0.0.1:4750` | 80/443 | HTTP Basic | **外网长期推荐** |
+| 宝塔反向代理 + 密码（「四、2」） | `127.0.0.1:4750` | 80/443 | 面板密码/Basic | **生产（宝塔）推荐** |
 
 外网建议：
 
-- 优先 **方式 2（Nginx + htpasswd）**，并配置 HTTPS
+- 已装宝塔：用 **第四节「2. 宝塔面板部署」**，并开 HTTPS
+- 无宝塔：用 **方式 2 命令行 Nginx + htpasswd**
 - 方式 1 若必须使用：安全组限制为你的公网 IP，不用时关闭规则
 - Basic 认证密码请用强密码；HTTPS 避免明文传输密码
 
